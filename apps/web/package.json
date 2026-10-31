@@ -26,7 +26,7 @@
     "clsx": "^2.1.1",
     "framer-motion": "^11.15.0",
     "geist": "^1.7.2",
-    "lucide-react": "^0.471.0",
+    "lucide-react": "^1.63.0",
     "luxon": "^3.5.0",
     "mixpanel-browser": "^2.58.0",
     "next": "^15.1.3",

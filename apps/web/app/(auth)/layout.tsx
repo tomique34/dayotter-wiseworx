@@ -1,62 +1,89 @@
-import { BrandMark } from "@/components/brand-mark";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { getSession } from "@/lib/auth/session";
 import { BRAND } from "@/lib/marketing";
-import { CalendarCheck, Sparkles, Users } from "lucide-react";
+import { CalendarCheck, Clock, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
+/*
+ * Wiseworx-branded auth shell (cal.wiseworx.net). The brand panel uses the
+ * Wiseworx palette from wiseworx.net as fixed colors on purpose: it is the
+ * brand surface and looks the same in light and dark. The form panel uses the
+ * app tokens, re-tinted by the `.ww-auth` scope in globals.css.
+ */
+
 const HIGHLIGHTS = [
-  { icon: CalendarCheck, text: "Sync Google, Outlook & iCloud in one place" },
-  { icon: Users, text: "Share availability across your whole team" },
-  { icon: Sparkles, text: "AI, automations & analytics - confirm-first" },
+  { icon: CalendarCheck, text: "Google Calendar synced in real time" },
+  { icon: Clock, text: "Bookings, reminders and follow-ups handled for you" },
+  { icon: ShieldCheck, text: "Self-hosted in the EU, private by design" },
 ];
 
+function WiseworxLogo({ size }: { size: number }) {
+  return (
+    <img
+      src="/brand/wiseworx-logo.png"
+      alt=""
+      aria-hidden
+      width={size}
+      height={Math.round(size * 0.973)}
+      className="block shrink-0"
+    />
+  );
+}
+
+function Wordmark({ size, compact = false }: { size: number; compact?: boolean }) {
+  return (
+    <span className="flex items-center gap-3">
+      <WiseworxLogo size={size} />
+      <span className={compact ? "text-[19px] font-semibold" : "text-[22px] font-semibold"}>
+        Wiseworx
+      </span>
+      <span className="rounded-full border border-[#2E2736] px-2.5 py-1 font-mono text-[11px] tracking-[0.06em] text-[#B9AEBB]">
+        CALENDAR
+      </span>
+    </span>
+  );
+}
+
 export default async function AuthLayout({ children }: { children: ReactNode }) {
-  // Already signed in? Skip the auth screens entirely - otherwise a logged-in
-  // user clicking "Sign in" from the marketing site is asked to re-authenticate.
+  // Already signed in? Skip the auth screens entirely.
   const session = await getSession();
   if (session?.user) redirect("/dashboard");
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
-      {/* Brand panel - hidden on small screens. */}
-      <aside
-        className="relative hidden flex-col justify-between overflow-hidden p-12 text-white lg:flex"
-        style={{
-          background:
-            "linear-gradient(155deg, var(--color-accent) 0%, var(--color-accent-hover) 55%, #2f259c 100%)",
-        }}
-      >
+    <div className="ww-auth grid min-h-screen bg-[var(--color-bg)] lg:grid-cols-[7fr_5fr]">
+      {/* Brand panel - desktop. */}
+      <aside className="ww-grid relative hidden flex-col justify-between overflow-hidden bg-[#15111A] px-[72px] py-14 text-[#F3EEE8] lg:flex">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.15]"
+          className="pointer-events-none absolute -right-[180px] -bottom-[200px] h-[640px] w-[640px] rounded-full"
           style={{
-            background:
-              "radial-gradient(60% 50% at 100% 0%, #ffffff 0%, transparent 60%), radial-gradient(50% 40% at 0% 100%, #ffffff 0%, transparent 55%)",
+            background: "radial-gradient(closest-side, rgba(238,155,69,0.16), rgba(238,155,69,0))",
           }}
         />
-        <div className="relative">
-          <Link href="/" className="flex items-center gap-2">
-            <BrandMark size={32} />
-            <span className="text-lg font-semibold tracking-tight">Day{" "}Otter</span>
-          </Link>
-        </div>
 
         <div className="relative">
-          <h2 className="font-display max-w-md text-4xl leading-[1.1] tracking-[-0.01em]">
-            The open-source home for your time.
-          </h2>
-          <p className="mt-4 max-w-sm text-white/70">
-            Sync every calendar, share your availability, and let people book you. Unhurried as an
-            otter on its back.
+          <Wordmark size={44} />
+        </div>
+
+        <div className="relative flex max-w-[600px] flex-col gap-7">
+          <span className="font-mono text-[13px] tracking-[0.14em] text-[#EE9B45]">
+            TOMÁŠ VINCE · WISEWORX
+          </span>
+          <h1 className="font-display text-[clamp(44px,4.2vw,60px)] leading-[1.04] font-semibold tracking-[-0.025em]">
+            Scheduling that runs
+            <br />
+            <span className="text-[#EE9B45]">on autopilot.</span>
+          </h1>
+          <p className="max-w-[520px] text-lg leading-relaxed text-[#B9AEBB]">
+            The private scheduling workspace of Wiseworx. Want to book a meeting? Use the booking
+            link you received from Tomáš.
           </p>
-          <ul className="mt-8 space-y-3.5">
+          <ul className="mt-2 space-y-3.5">
             {HIGHLIGHTS.map((h) => (
-              <li key={h.text} className="flex items-center gap-3 text-sm text-white/85">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.12] backdrop-blur">
-                  <h.icon size={16} />
+              <li key={h.text} className="flex items-center gap-3.5 text-[15px]">
+                <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full border border-[#2E2736] bg-[#1E1924]">
+                  <h.icon size={16} className="text-[#EE9B45]" />
                 </span>
                 {h.text}
               </li>
@@ -64,39 +91,46 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
           </ul>
         </div>
 
-        <p className="relative text-sm text-white/55">Made for people who value their time.</p>
+        <div className="relative flex items-center justify-between text-[13px] text-[#8F8494]">
+          <span>© {BRAND.copyrightYear} Wiseworx · Ing. Tomáš Vince</span>
+          <a href="https://wiseworx.net" className="text-[#B9AEBB] hover:text-[#F3EEE8]">
+            wiseworx.net →
+          </a>
+        </div>
       </aside>
 
       {/* Form panel. */}
-      <div className="relative flex flex-col px-6 py-8 sm:px-10">
-        <div className="flex items-center justify-between">
-          {/* Logo shown on mobile (the brand panel carries it on desktop). */}
-          <Link href="/" className="flex items-center gap-2 lg:invisible">
-            <BrandMark size={32} />
-            <span className="text-lg font-semibold tracking-tight">Day{" "}Otter</span>
-          </Link>
-          <ThemeToggle />
-        </div>
+      <div className="relative flex flex-col">
+        {/* Brand header - mobile only (the aside carries it on desktop). */}
+        <header className="ww-grid flex flex-col gap-5 bg-[#15111A] px-6 pt-7 pb-8 text-[#F3EEE8] lg:hidden">
+          <Wordmark size={36} compact />
+          <p className="font-display text-[30px] leading-[1.08] font-semibold tracking-[-0.02em]">
+            Scheduling that runs <span className="text-[#EE9B45]">on autopilot.</span>
+          </p>
+        </header>
 
-        <div className="flex flex-1 items-center justify-center py-8">
-          <div className="w-full max-w-sm">{children}</div>
-        </div>
+        <div className="flex flex-1 flex-col px-6 py-8 sm:px-10 lg:px-[72px] lg:py-14">
+          <div className="flex flex-1 items-center justify-center lg:py-8">
+            <div className="w-full max-w-[380px]">{children}</div>
+          </div>
 
-        <div className="flex items-center justify-center gap-4 text-xs text-[var(--color-faint)]">
-          <Link href="/privacy" className="hover:text-[var(--color-muted)]">
-            Privacy
-          </Link>
-          <Link href="/terms" className="hover:text-[var(--color-muted)]">
-            Terms
-          </Link>
-          <a
-            href={BRAND.github}
-            target="_blank"
-            rel="noreferrer"
-            className="hover:text-[var(--color-muted)]"
-          >
-            Open source · AGPLv3
-          </a>
+          <div className="mt-8 flex items-center justify-center gap-5 text-xs text-[var(--color-muted)]">
+            <Link href="/privacy" className="hover:text-[var(--color-text)]">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-[var(--color-text)]">
+              Terms
+            </Link>
+            {/* AGPLv3: keep a link to the source of this deployment. */}
+            <a
+              href="https://github.com/tomique34/dayotter-wiseworx"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-[var(--color-text)]"
+            >
+              Powered by DayOtter · AGPLv3
+            </a>
+          </div>
         </div>
       </div>
     </div>

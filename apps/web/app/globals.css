@@ -219,3 +219,53 @@
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-strong) transparent;
 }
+
+/*
+ * Wiseworx auth shell (app/(auth)/layout.tsx): the form panel re-tints the app
+ * tokens to the wiseworx.net palette - warm paper in light, plum-black in dark,
+ * orange accent in both. Scoped so the rest of the app keeps its own theme.
+ */
+.ww-auth {
+  --color-bg: #f1ece3;
+  --color-surface: #fbf9f5;
+  --color-surface-2: #e7e0d4;
+  --color-border: #d5ccbf;
+  --color-border-strong: #d5ccbf;
+  --color-text: #221c27;
+  --color-muted: #5a5061;
+  --color-faint: #8a7f8c;
+  --color-accent: #ee9b45;
+  --color-accent-hover: #e48a2f;
+  --color-accent-fg: #1a1206;
+  --color-accent-soft: rgba(238, 155, 69, 0.18);
+}
+.dark .ww-auth {
+  --color-bg: #1e1924;
+  --color-surface: #15111a;
+  --color-surface-2: #2e2736;
+  --color-border: #2e2736;
+  --color-border-strong: #3a3244;
+  --color-text: #f3eee8;
+  --color-muted: #b9aebb;
+  --color-faint: #8f8494;
+}
+.ww-auth button[type="submit"] {
+  border-radius: 999px;
+}
+.ww-auth input {
+  height: 46px;
+  border-radius: 10px;
+  background: var(--color-surface);
+  font-size: 15px;
+}
+/* Links in the form are text, not accent-on-paper (orange fails contrast there). */
+.ww-auth a.text-xs {
+  color: #93510f;
+}
+.dark .ww-auth a.text-xs {
+  color: #ee9b45;
+}
+.ww-grid {
+  background-image: radial-gradient(rgba(243, 238, 232, 0.09) 1px, transparent 1px);
+  background-size: 28px 28px;
+}

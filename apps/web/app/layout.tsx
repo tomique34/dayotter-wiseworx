@@ -18,8 +18,8 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   metadataBase: new URL(BRAND.url),
   title: {
-    default: "DayOtter - the AI-native, open-source scheduling platform",
-    template: "%s - DayOtter",
+    default: "Wiseworx Calendar",
+    template: "%s - Wiseworx Calendar",
   },
   description: DESCRIPTION,
   applicationName: BRAND.name,
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   creator: BRAND.name,
   publisher: BRAND.name,
   alternates: { canonical: "/" },
-  icons: { icon: "/brand/dayotter-icon.svg", apple: "/brand/dayotter-icon.svg" },
+  icons: { icon: "/brand/wiseworx-favicon.png", apple: "/brand/wiseworx-apple-icon.png" },
   openGraph: {
     type: "website",
     siteName: BRAND.name,

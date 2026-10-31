@@ -19,8 +19,15 @@ const FRAME_DENY = [
 ];
 
 export function middleware(req: NextRequest) {
-  const res = NextResponse.next();
   const p = req.nextUrl.pathname;
+
+  // Wiseworx deployment: no public landing page. The root goes straight to
+  // sign-in (signed-in users are bounced on to /dashboard by the auth layout).
+  if (p === "/") {
+    return NextResponse.redirect(new URL("/sign-in", req.url), 307);
+  }
+
+  const res = NextResponse.next();
 
   // Baseline hardening on every response.
   res.headers.set("X-Content-Type-Options", "nosniff");

@@ -28,7 +28,7 @@
     "expo-secure-store": "~14.2.4",
     "expo-speech": "~13.1.7",
     "expo-speech-recognition": "1.1.1",
-    "expo-status-bar": "~2.2.3",
+    "expo-status-bar": "~58.0.4",
     "expo-web-browser": "~14.2.0",
     "react": "19.0.0",
     "react-native": "0.79.6",

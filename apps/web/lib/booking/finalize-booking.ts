@@ -70,33 +70,6 @@ export async function finalizeConfirmedBooking(ctx: FinalizeContext): Promise<vo
   const recurringCount = !isGroup ? Math.min(52, Math.max(1, eventType.recurringCount ?? 1)) : 1;
   const isRecurring = recurringCount > 1 && Boolean(recurrenceUid);
 
-  // Fan out to webhooks / CRM sync / plugin hooks (best-effort). This fires HERE,
-  // when the booking is actually confirmed - so an opt-in request that's still
-  // `pending` (or later declined) never emits a phantom "created", and a request
-  // the host approves emits it exactly once, on approval.
-  await fanOutBookingLifecycle(
-    "created",
-    {
-      bookingId: booking.id,
-      uid,
-      hostId: host.id,
-      eventTypeId: eventType.id,
-      title: eventType.title,
-      startsAt: start.toISOString(),
-      endsAt: end.toISOString(),
-      attendees: [{ name: attendee.name, email: attendee.email }],
-    },
-    {
-      uid,
-      eventTypeId: eventType.id,
-      title: eventType.title,
-      startsAt: start.toISOString(),
-      endsAt: end.toISOString(),
-      status: "confirmed",
-      attendee: { name: attendee.name, email: attendee.email },
-    },
-  );
-
   // Zoom event types: auto-create a real Zoom meeting when the host has Zoom
   // connected (falls back to any manual link otherwise). Best-effort.
   // Group events share one link (the host's configured location) and are NOT
@@ -104,12 +77,14 @@ export async function finalizeConfirmedBooking(ctx: FinalizeContext): Promise<vo
   // and wrongly close the shared slot, and per-booking Zoom links would differ.
   let zoomUrl: string | null = null;
   if (!isGroup && eventType.location === "zoom") {
+    // Caught here too: the webhook fan-out now runs after this, so a throw must
+    // not be able to skip it.
     zoomUrl = await createZoomMeeting(host.id, {
       topic: eventType.title,
       startISO: start.toISOString(),
       durationMinutes: duration,
       timezone: attendee.timezone,
-    });
+    }).catch(() => null);
   }
   // Jitsi: we mint the room URL ourselves (no account/OAuth). Works for group
   // events too - everyone shares the one room.
@@ -159,6 +134,35 @@ export async function finalizeConfirmedBooking(ctx: FinalizeContext): Promise<vo
   if (meetingUrl) {
     await db.update(schema.bookings).set({ meetingUrl }).where(eq(schema.bookings.id, booking.id));
   }
+
+  // Fan out to webhooks / CRM sync / plugin hooks (best-effort). This fires HERE,
+  // when the booking is actually confirmed - so an opt-in request that's still
+  // `pending` (or later declined) never emits a phantom "created", and a request
+  // the host approves emits it exactly once, on approval. It runs after the
+  // calendar write so the payload can carry the generated Meet/Teams/Zoom link.
+  await fanOutBookingLifecycle(
+    "created",
+    {
+      bookingId: booking.id,
+      uid,
+      hostId: host.id,
+      eventTypeId: eventType.id,
+      title: eventType.title,
+      startsAt: start.toISOString(),
+      endsAt: end.toISOString(),
+      attendees: [{ name: attendee.name, email: attendee.email }],
+    },
+    {
+      uid,
+      eventTypeId: eventType.id,
+      title: eventType.title,
+      startsAt: start.toISOString(),
+      endsAt: end.toISOString(),
+      status: "confirmed",
+      attendee: { name: attendee.name, email: attendee.email },
+      meetingUrl: meetingUrl ?? null,
+    },
+  );
 
   // Host opt-ins + reminder offsets in ONE read (reused for the recurring
   // occurrences below), instead of three separate userPreferences lookups.
@@ -366,6 +370,7 @@ export async function finalizeConfirmedBooking(ctx: FinalizeContext): Promise<vo
             endsAt: occEndISO,
             status: occ.status,
             attendee: { name: attendee.name, email: attendee.email },
+            meetingUrl: occMeetingUrl ?? null,
           },
         ).catch(() => {});
         await scheduleWorkflowMessages(

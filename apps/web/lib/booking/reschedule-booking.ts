@@ -263,7 +263,15 @@ export async function rescheduleBooking(
         endsAt,
         attendees: booking.attendees.map((a) => ({ name: a.name, email: a.email })),
       },
-      { uid, eventTypeId: booking.eventTypeId, title: booking.title, startsAt, endsAt },
+      {
+        uid,
+        eventTypeId: booking.eventTypeId,
+        title: booking.title,
+        startsAt,
+        endsAt,
+        // The calendar update returns a link only when it changed; fall back to the stored one.
+        meetingUrl: meetingUrl ?? booking.meetingUrl ?? null,
+      },
     );
   }
 

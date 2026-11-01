@@ -821,7 +821,7 @@ export const GUIDES: DocGuide[] = [
       {
         heading: "Webhooks",
         paragraphs: [
-          "Register an endpoint URL and subscribe to booking.created, booking.rescheduled, and booking.cancelled. Each delivery is signed with an HMAC-SHA-256 signature over a timestamped body (Stripe-style), so you can verify authenticity and reject replays. Deliveries retry with backoff and record their terminal status.",
+          "Register an endpoint URL and subscribe to booking.created, booking.rescheduled, and booking.cancelled. Created and rescheduled payloads include the meetingUrl (Meet, Teams, Zoom or Jitsi link) when one exists. Each delivery is signed with an HMAC-SHA-256 signature over a timestamped body (Stripe-style), so you can verify authenticity and reject replays. Deliveries retry with backoff and record their terminal status.",
         ],
       },
       {

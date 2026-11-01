@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type BookingEmailData, bookingConfirmation, brandName, weeklyDigest } from "./templates";
+import {
+  type BookingEmailData,
+  bookingCancellation,
+  bookingConfirmation,
+  bookingReminder,
+  bookingRescheduled,
+  brandName,
+  weeklyDigest,
+} from "./templates";
 
 const base: BookingEmailData = {
   eventTitle: "Konzultácia",
@@ -120,5 +128,65 @@ describe("bookingConfirmation", () => {
     const r = bookingConfirmation(base);
     expect(r.html).toContain("Odoslané cez Meeting Manager");
     expect(r.text).toContain("Odoslané cez Meeting Manager");
+  });
+});
+
+describe("bookingReminder", () => {
+  it("renders Slovak copy with the lead label, join button and brand colour", () => {
+    vi.stubEnv("EMAIL_BRAND_NAME", "Meeting Manager");
+    const r = bookingReminder({
+      ...base,
+      leadLabel: "zajtra",
+      brandColor: "#0f766e",
+      meetingUrl: "https://meet.google.com/abc-defg-hij",
+    });
+    expect(r.subject).toBe("Pripomienka: Konzultácia, zajtra");
+    expect(r.text).toContain("stretnutie začína zajtra");
+    expect(r.html).toContain("Stretnutie začína zajtra.");
+    expect(r.html).toContain("Pripojiť sa cez Google Meet");
+    expect(r.html).toContain("background:#0f766e");
+    expect(r.html).toContain("Odoslané cez Meeting Manager");
+    expect(r.html).not.toContain("Reminder");
+  });
+});
+
+describe("bookingRescheduled", () => {
+  it("shows the new time, the struck-through old time and the reason", () => {
+    const r = bookingRescheduled({
+      ...base,
+      previousStart: new Date("2026-11-02T09:00:00Z"),
+      reason: "Kolízia s <iným> stretnutím",
+      meetingUrl: "https://teams.microsoft.com/l/meetup-join/xyz",
+    });
+    expect(r.subject).toBe("Presunuté: Konzultácia, 3. 11. o 15:00");
+    expect(r.text).toContain("Nový termín: Utorok 3. novembra 2026 o 15:00");
+    expect(r.text).toContain("Pôvodne: Pondelok 2. novembra 2026 o 10:00");
+    expect(r.html).toContain("text-decoration:line-through");
+    expect(r.html).toContain("Dôvod presunu");
+    expect(r.html).toContain("&lt;iným&gt;");
+    expect(r.html).toContain("Pripojiť sa cez Microsoft Teams");
+  });
+
+  it("frames the host copy around the attendee and omits the old time when unknown", () => {
+    const r = bookingRescheduled({ ...base, recipient: "host" });
+    expect(r.text).toContain("Účastník: Jana Nováková");
+    expect(r.text).not.toContain("Pôvodne");
+  });
+});
+
+describe("bookingCancellation", () => {
+  it("renders Slovak copy with the cancelled time and reason, without a join button", () => {
+    const r = bookingCancellation({
+      ...base,
+      reason: "Ochorenie",
+      meetingUrl: "https://meet.google.com/abc-defg-hij",
+    });
+    expect(r.subject).toBe("Zrušené: Konzultácia, 3. 11. o 15:00");
+    expect(r.text).toContain("Táto rezervácia bola zrušená.");
+    expect(r.text).toContain("Termín: Utorok 3. novembra 2026 o 15:00");
+    expect(r.html).toContain("Dôvod zrušenia");
+    expect(r.html).toContain("Ochorenie");
+    expect(r.html).not.toContain("Pripojiť sa");
+    expect(r.html).toContain("Rezervácia zrušená");
   });
 });

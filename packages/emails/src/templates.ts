@@ -20,6 +20,8 @@ export interface BookingEmailData {
   hostMessage?: string | null;
   /** Who this copy is for - the host gets a "new booking" framing instead. */
   recipient?: "attendee" | "host";
+  /** Reschedule only: the time the booking moved away from. */
+  previousStart?: Date;
 }
 
 const DEFAULT_BRAND = "DayOtter";
@@ -139,41 +141,47 @@ function whenSk(date: Date, tz: string): string {
   return `${day.charAt(0).toUpperCase()}${day.slice(1)} o ${d.toFormat("H:mm")} (${d.toFormat("ZZZZ")})`;
 }
 
-export function bookingConfirmation(d: BookingEmailData): Rendered {
-  const forHost = d.recipient === "host";
+interface BrandedRow {
+  label: string;
+  value: string;
+  /** Render struck through - the old time on a reschedule or cancellation. */
+  strike?: boolean;
+}
+
+interface BrandedEmail {
+  accent: string;
+  /** Small uppercase line above the title ("Rezervácia potvrdená"). */
+  eyebrow: string;
+  title: string;
+  /** Opening sentence of the plain-text part. */
+  intro: string;
+  /** Optional sentence under the title in HTML, when the eyebrow alone isn't enough. */
+  lead?: string;
+  rows: BrandedRow[];
+  note?: { label: string; body: string };
+  joinUrl?: string;
+  link?: { label: string; url: string };
+}
+
+/**
+ * Shared card layout for the Slovak booking emails, so confirmation, reminder,
+ * reschedule and cancellation look like one family: brand-colour bar, eyebrow,
+ * detail table, optional note, provider-named join button, footer brand.
+ */
+function brandedEmail(e: BrandedEmail): { text: string; html: string } {
   const brand = brandName();
-  const accent = accentColor(d.brandColor);
-  const onAccent = textOnAccent(accent);
-  const when = whenSk(d.start, d.timezone);
-  const duration = durationSk(d.start, d.end);
-  const joinUrl = d.meetingUrl && /^https?:\/\//i.test(d.meetingUrl) ? d.meetingUrl : undefined;
-  // The welcome message is written for the booking page, so only the attendee sees it.
-  const message = forHost ? "" : (d.hostMessage ?? "").trim().slice(0, 1000);
-  const hostName = d.hostName.trim();
-  const short = DateTime.fromJSDate(d.start).setZone(d.timezone).toFormat("d. M. 'o' H:mm");
-
-  const rows: [string, string][] = [
-    forHost ? ["Účastník", d.attendeeName] : ["Hostiteľ", hostName],
-    ["Kedy", when],
-    ["Trvanie", duration],
-  ];
-  if (!joinUrl && d.location) rows.push(["Miesto", d.location]);
-  const visibleRows = rows.filter(([, v]) => v);
-
-  const subject = forHost
-    ? `Nová rezervácia: ${d.eventTitle}, ${d.attendeeName}, ${short}`
-    : `Potvrdené: ${d.eventTitle}, ${short}`;
-  const intro = forHost ? "Máte novú rezerváciu." : "Vaša rezervácia je potvrdená.";
+  const onAccent = textOnAccent(e.accent);
+  const rows = e.rows.filter((r) => r.value);
 
   const text = [
-    intro,
+    e.intro,
     "",
-    d.eventTitle,
-    ...visibleRows.map(([k, v]) => `${k}: ${v}`),
-    joinUrl ? `Pripojiť sa: ${joinUrl}` : "",
-    message ? `\nSpráva od hostiteľa:\n${message}` : "",
+    e.title,
+    ...rows.map((r) => `${r.label}: ${r.value}`),
+    e.joinUrl ? `Pripojiť sa: ${e.joinUrl}` : "",
+    e.note ? `\n${e.note.label}:\n${e.note.body}` : "",
     "",
-    `Spravovať alebo zrušiť rezerváciu: ${d.manageUrl}`,
+    e.link ? `${e.link.label}: ${e.link.url}` : "",
     "",
     `Odoslané cez ${brand}`,
   ]
@@ -181,39 +189,93 @@ export function bookingConfirmation(d: BookingEmailData): Rendered {
     .join("\n");
 
   const font = "ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif";
-  const rowsHtml = visibleRows
+  const rowsHtml = rows
     .map(
-      ([k, v]) =>
-        `<tr><td style="padding:6px 16px 6px 0;color:#6b7280;white-space:nowrap;vertical-align:top;width:1%">${k}</td><td style="padding:6px 0;color:#0c0e14">${esc(v)}</td></tr>`,
+      (r) =>
+        `<tr><td style="padding:6px 16px 6px 0;color:#6b7280;white-space:nowrap;vertical-align:top;width:1%">${r.label}</td><td style="padding:6px 0;color:${r.strike ? "#98a0ae;text-decoration:line-through" : "#0c0e14"}">${esc(r.value)}</td></tr>`,
     )
     .join("");
-  const messageHtml = message
-    ? `<div style="margin:0 0 22px;padding:14px 16px;background:#f7f7fb;border-left:3px solid ${accent};border-radius:8px">
-        <p style="margin:0 0 6px;color:#6b7280;font-size:12px">Správa od hostiteľa</p>
-        <p style="margin:0;color:#3a3f4b;font-size:14px;line-height:1.6">${esc(message).replace(/\r?\n/g, "<br>")}</p>
+  const leadHtml = e.lead
+    ? `<p style="margin:-8px 0 18px;color:#3a3f4b;font-size:15px;line-height:1.5">${esc(e.lead)}</p>`
+    : "";
+  const noteHtml = e.note
+    ? `<div style="margin:0 0 22px;padding:14px 16px;background:#f7f7fb;border-left:3px solid ${e.accent};border-radius:8px">
+        <p style="margin:0 0 6px;color:#6b7280;font-size:12px">${esc(e.note.label)}</p>
+        <p style="margin:0;color:#3a3f4b;font-size:14px;line-height:1.6">${esc(e.note.body).replace(/\r?\n/g, "<br>")}</p>
       </div>`
     : "";
-  const joinHtml = joinUrl
-    ? `<a href="${esc(joinUrl)}" style="display:block;text-align:center;background:${accent};color:${onAccent};text-decoration:none;padding:13px 18px;border-radius:10px;font-size:15px;font-weight:600">${joinLabel(joinUrl)}</a>
-      <p style="margin:8px 0 0;text-align:center;font-size:12px;color:#6b7280;word-break:break-all">alebo otvorte <a href="${esc(joinUrl)}" style="color:#6b7280">${esc(joinUrl)}</a></p>`
+  const joinHtml = e.joinUrl
+    ? `<a href="${esc(e.joinUrl)}" style="display:block;text-align:center;background:${e.accent};color:${onAccent};text-decoration:none;padding:13px 18px;border-radius:10px;font-size:15px;font-weight:600">${joinLabel(e.joinUrl)}</a>
+      <p style="margin:8px 0 0;text-align:center;font-size:12px;color:#6b7280;word-break:break-all">alebo otvorte <a href="${esc(e.joinUrl)}" style="color:#6b7280">${esc(e.joinUrl)}</a></p>`
+    : "";
+  const linkHtml = e.link
+    ? `<p style="margin:22px 0 0;text-align:center;font-size:13px"><a href="${esc(safeUrl(e.link.url))}" style="color:${e.accent};text-decoration:underline">${esc(e.link.label)}</a></p>`
     : "";
 
   const html = `<div style="background:#f4f5f7;padding:28px 12px;font-family:${font}">
   <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e6e8ec;border-radius:14px;overflow:hidden">
-    <div style="height:6px;background:${accent}"></div>
+    <div style="height:6px;background:${e.accent}"></div>
     <div style="padding:28px 28px 24px">
-      <p style="margin:0 0 6px;color:${accent};font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase">${forHost ? "Nová rezervácia" : "Rezervácia potvrdená"}</p>
-      <h1 style="margin:0 0 18px;font-size:21px;line-height:1.3;color:#0c0e14">${esc(d.eventTitle)}</h1>
+      <p style="margin:0 0 6px;color:${e.accent};font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase">${esc(e.eyebrow)}</p>
+      <h1 style="margin:0 0 18px;font-size:21px;line-height:1.3;color:#0c0e14">${esc(e.title)}</h1>
+      ${leadHtml}
       <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:14px;line-height:1.5;margin:0 0 22px">${rowsHtml}</table>
-      ${messageHtml}
+      ${noteHtml}
       ${joinHtml}
-      <p style="margin:22px 0 0;text-align:center;font-size:13px"><a href="${esc(safeUrl(d.manageUrl))}" style="color:${accent};text-decoration:underline">Spravovať alebo zrušiť rezerváciu</a></p>
+      ${linkHtml}
     </div>
   </div>
   <p style="margin:16px 0 0;text-align:center;color:#98a0ae;font-size:12px">Odoslané cez ${brand}</p>
 </div>`;
 
-  return { subject, text, html };
+  return { text, html };
+}
+
+function httpUrl(url?: string): string | undefined {
+  return url && /^https?:\/\//i.test(url) ? url : undefined;
+}
+
+function shortSk(date: Date, tz: string): string {
+  return DateTime.fromJSDate(date).setZone(tz).toFormat("d. M. 'o' H:mm");
+}
+
+/** "Hostiteľ" for the attendee's copy, "Účastník" for the host's. */
+function personRow(d: BookingEmailData): BrandedRow {
+  return d.recipient === "host"
+    ? { label: "Účastník", value: d.attendeeName }
+    : { label: "Hostiteľ", value: d.hostName.trim() };
+}
+
+const MANAGE_LABEL = "Spravovať alebo zrušiť rezerváciu";
+
+export function bookingConfirmation(d: BookingEmailData): Rendered {
+  const forHost = d.recipient === "host";
+  const joinUrl = httpUrl(d.meetingUrl);
+  // The welcome message is written for the booking page, so only the attendee sees it.
+  const message = forHost ? "" : (d.hostMessage ?? "").trim().slice(0, 1000);
+  const short = shortSk(d.start, d.timezone);
+  const { text, html } = brandedEmail({
+    accent: accentColor(d.brandColor),
+    eyebrow: forHost ? "Nová rezervácia" : "Rezervácia potvrdená",
+    title: d.eventTitle,
+    intro: forHost ? "Máte novú rezerváciu." : "Vaša rezervácia je potvrdená.",
+    rows: [
+      personRow(d),
+      { label: "Kedy", value: whenSk(d.start, d.timezone) },
+      { label: "Trvanie", value: durationSk(d.start, d.end) },
+      { label: "Miesto", value: !joinUrl && d.location ? d.location : "" },
+    ],
+    note: message ? { label: "Správa od hostiteľa", body: message } : undefined,
+    joinUrl,
+    link: { label: MANAGE_LABEL, url: d.manageUrl },
+  });
+  return {
+    subject: forHost
+      ? `Nová rezervácia: ${d.eventTitle}, ${d.attendeeName}, ${short}`
+      : `Potvrdené: ${d.eventTitle}, ${short}`,
+    text,
+    html,
+  };
 }
 
 export interface GuardrailAlertData {
@@ -260,19 +322,25 @@ export function guardrailAlert(d: GuardrailAlertData): Rendered {
   };
 }
 
+/** `leadLabel` is a short Slovak phrase from the reminders worker ("zajtra", "približne o hodinu"). */
 export function bookingReminder(d: BookingEmailData & { leadLabel: string }): Rendered {
-  const when = fmt(d.start, d.timezone);
-  return {
-    subject: `Reminder: ${d.eventTitle} ${d.leadLabel}`,
-    text: `Reminder - ${d.eventTitle} with ${d.hostName} is ${d.leadLabel}.\nWhen: ${when}\n${d.meetingUrl ? `Join: ${d.meetingUrl}` : ""}\n\nManage: ${d.manageUrl}`,
-    html: shell(
-      `Reminder: your meeting is ${esc(d.leadLabel)}`,
-      [`<strong>${esc(d.eventTitle)}</strong> with ${esc(d.hostName)}`, `🗓 ${when}`],
-      d.meetingUrl
-        ? { label: "Join call", url: d.meetingUrl }
-        : { label: "View booking", url: d.manageUrl },
-    ),
-  };
+  const joinUrl = httpUrl(d.meetingUrl);
+  const { text, html } = brandedEmail({
+    accent: accentColor(d.brandColor),
+    eyebrow: "Pripomienka",
+    title: d.eventTitle,
+    intro: `Pripomienka: stretnutie začína ${d.leadLabel}.`,
+    lead: `Stretnutie začína ${d.leadLabel}.`,
+    rows: [
+      personRow(d),
+      { label: "Kedy", value: whenSk(d.start, d.timezone) },
+      { label: "Trvanie", value: durationSk(d.start, d.end) },
+      { label: "Miesto", value: !joinUrl && d.location ? d.location : "" },
+    ],
+    joinUrl,
+    link: { label: MANAGE_LABEL, url: d.manageUrl },
+  });
+  return { subject: `Pripomienka: ${d.eventTitle}, ${d.leadLabel}`, text, html };
 }
 
 export function bookingFollowUp(d: BookingEmailData): Rendered {
@@ -307,26 +375,32 @@ export function bookingNoShowFollowUp(d: BookingEmailData): Rendered {
 }
 
 export function bookingRescheduled(d: BookingEmailData): Rendered {
-  const when = fmt(d.start, d.timezone);
-  const where = d.meetingUrl
-    ? `Join: ${d.meetingUrl}`
-    : d.location
-      ? `Location: ${d.location}`
-      : "";
-  const note = d.reason ? `Reason: ${d.reason}` : "";
+  const joinUrl = httpUrl(d.meetingUrl);
+  const reason = (d.reason ?? "").trim();
+  const { text, html } = brandedEmail({
+    accent: accentColor(d.brandColor),
+    eyebrow: "Rezervácia presunutá",
+    title: d.eventTitle,
+    intro: "Rezervácia bola presunutá na nový termín.",
+    rows: [
+      personRow(d),
+      { label: "Nový termín", value: whenSk(d.start, d.timezone) },
+      {
+        label: "Pôvodne",
+        value: d.previousStart ? whenSk(d.previousStart, d.timezone) : "",
+        strike: true,
+      },
+      { label: "Trvanie", value: durationSk(d.start, d.end) },
+      { label: "Miesto", value: !joinUrl && d.location ? d.location : "" },
+    ],
+    note: reason ? { label: "Dôvod presunu", body: reason } : undefined,
+    joinUrl,
+    link: { label: MANAGE_LABEL, url: d.manageUrl },
+  });
   return {
-    subject: `Rescheduled: ${d.eventTitle} - ${DateTime.fromJSDate(d.start).setZone(d.timezone).toFormat("LLL d, h:mm a")}`,
-    text: `Your booking has been moved to a new time.\n\n${d.eventTitle} with ${d.hostName}\nNew time: ${when}\n${where}${note ? `\n\n${note}` : ""}\n\nManage: ${d.manageUrl}`,
-    html: shell(
-      "Your booking was rescheduled",
-      [
-        `<strong>${esc(d.eventTitle)}</strong> with ${esc(d.hostName)} has a new time:`,
-        `🗓 ${when}`,
-        where ? `📍 ${esc(where)}` : "",
-        note ? `💬 ${esc(note)}` : "",
-      ].filter(Boolean),
-      { label: "View booking", url: d.manageUrl },
-    ),
+    subject: `Presunuté: ${d.eventTitle}, ${shortSk(d.start, d.timezone)}`,
+    text,
+    html,
   };
 }
 
@@ -421,18 +495,19 @@ export function bookingDeclined(d: BookingEmailData): Rendered {
 }
 
 export function bookingCancellation(d: BookingEmailData): Rendered {
-  const note = d.reason ? `Reason: ${d.reason}` : "";
+  const reason = (d.reason ?? "").trim();
+  const { text, html } = brandedEmail({
+    accent: accentColor(d.brandColor),
+    eyebrow: "Rezervácia zrušená",
+    title: d.eventTitle,
+    intro: "Táto rezervácia bola zrušená.",
+    rows: [personRow(d), { label: "Termín", value: whenSk(d.start, d.timezone), strike: true }],
+    note: reason ? { label: "Dôvod zrušenia", body: reason } : undefined,
+  });
   return {
-    subject: `Cancelled: ${d.eventTitle} - ${DateTime.fromJSDate(d.start).setZone(d.timezone).toFormat("LLL d, h:mm a")}`,
-    text: `This booking has been cancelled.\n\n${d.eventTitle} with ${d.hostName}\nWas: ${fmt(d.start, d.timezone)}${note ? `\n\n${note}` : ""}`,
-    html: shell(
-      "Booking cancelled",
-      [
-        `<strong>${esc(d.eventTitle)}</strong> with ${esc(d.hostName)} has been cancelled.`,
-        `Was: ${fmt(d.start, d.timezone)}`,
-        note ? `💬 ${esc(note)}` : "",
-      ].filter(Boolean),
-    ),
+    subject: `Zrušené: ${d.eventTitle}, ${shortSk(d.start, d.timezone)}`,
+    text,
+    html,
   };
 }
 

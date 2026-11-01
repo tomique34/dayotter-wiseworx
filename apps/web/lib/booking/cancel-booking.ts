@@ -5,6 +5,7 @@ import { bookingCancellation, sendEmail } from "@dayotter/emails";
 import { deleteBookingFromCalendar } from "../calendar/host-calendar";
 import { restoreCredit } from "../packages/credits";
 import { paymentsEnabled, refundPayment } from "../payments/stripe";
+import { getHostBranding } from "./branding";
 import { fanOutBookingLifecycle } from "./lifecycle";
 import { clearBookingReminders } from "./reminders";
 
@@ -123,7 +124,8 @@ export async function cancelBooking(uid: string, reason?: string): Promise<boole
     );
   }
 
-  // Notify attendees.
+  // Notify attendees. Branding is cosmetic, so a failed lookup never blocks the email.
+  const branding = booking.hostId ? await getHostBranding(booking.hostId).catch(() => null) : null;
   try {
     await Promise.all(
       booking.attendees.map((a) =>
@@ -133,10 +135,12 @@ export async function cancelBooking(uid: string, reason?: string): Promise<boole
             start: booking.startsAt,
             end: booking.endsAt,
             timezone: a.timezone ?? booking.timezone,
-            hostName: booking.host?.name ?? "your host",
+            // Empty drops the "Hostiteľ" row instead of an English placeholder.
+            hostName: booking.host?.name ?? "",
             attendeeName: a.name ?? a.email,
             manageUrl: `${env.APP_URL}/booking/${uid}`,
             reason: reason ?? null,
+            brandColor: branding?.brandColor,
           }),
           to: a.email,
         }),

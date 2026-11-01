@@ -6,6 +6,7 @@ import { DateTime } from "luxon";
 import { reserveRuleBlocks } from "../automation/apply-rules";
 import { updateBookingCalendarEvent } from "../calendar/host-calendar";
 import { SLOT_REVALIDATION_WINDOW_MS, eventConstraints, hostSlots } from "./availability";
+import { getHostBranding } from "./branding";
 import { AUTO_CONFERENCE } from "./event-type-input";
 import { fanOutBookingLifecycle } from "./lifecycle";
 import {
@@ -266,18 +267,28 @@ export async function rescheduleBooking(
     );
   }
 
-  // Notify.
+  // Notify. Branding is cosmetic, so a failed lookup never blocks the email.
   const appUrl = env.APP_URL;
+  const branding = booking.hostId ? await getHostBranding(booking.hostId).catch(() => null) : null;
+  const attendeeNames = booking.attendees.map((a) => a.name ?? a.email).join(", ");
   try {
     await Promise.all(
       [
         ...booking.attendees.map((a) => ({
           email: a.email,
-          name: a.name,
+          name: a.name ?? a.email,
           tz: a.timezone ?? booking.timezone,
+          role: "attendee" as const,
         })),
         ...(booking.host?.email
-          ? [{ email: booking.host.email, name: booking.host.name, tz: booking.host.timezone }]
+          ? [
+              {
+                email: booking.host.email,
+                name: attendeeNames,
+                tz: booking.host.timezone,
+                role: "host" as const,
+              },
+            ]
           : []),
       ].map((r) =>
         sendEmail({
@@ -286,12 +297,17 @@ export async function rescheduleBooking(
             start: newStart,
             end: newEnd,
             timezone: r.tz,
-            hostName: booking.host?.name ?? "your host",
-            attendeeName: r.name ?? r.email,
+            hostName: booking.host?.name ?? "",
+            // The host's copy lists who's attending; an attendee's copy names the host.
+            attendeeName: r.name,
             meetingUrl: meetingUrl ?? booking.meetingUrl ?? undefined,
             location: eventType.locationDetail ?? undefined,
             manageUrl: `${appUrl}/booking/${uid}`,
             reason: reason ?? null,
+            // `booking` was loaded before the update, so this is still the old time.
+            previousStart: booking.startsAt,
+            brandColor: branding?.brandColor,
+            recipient: r.role,
           }),
           to: r.email,
         }),

@@ -22,6 +22,19 @@ function leadLabel(start: Date): string {
   return "soon";
 }
 
+/** Slovak twin of `leadLabel` for the attendee reminder email ("začína {label}"). */
+function leadLabelSk(start: Date): string {
+  const mins = Math.round((start.getTime() - Date.now()) / 60_000);
+  if (mins >= 720) return "zajtra";
+  if (mins >= 90) {
+    const h = Math.round(mins / 60);
+    // Slovak plural: 2-4 "hodiny", 5+ "hodín".
+    return `približne o ${h} ${h <= 4 ? "hodiny" : "hodín"}`;
+  }
+  if (mins >= 45) return "približne o hodinu";
+  return "o chvíľu";
+}
+
 /**
  * Sends a reminder email for a booking. Idempotent: if the reminder row is
  * already marked sent, it no-ops, so a duplicate job delivery won't double-send.
@@ -204,6 +217,15 @@ export function startRemindersWorker(): Worker<ReminderJob> {
 
       if (booking.status !== "confirmed") return;
       const label = leadLabel(booking.startsAt);
+      // Brand colour is cosmetic: a failed lookup still sends the reminder.
+      const prefs = booking.hostId
+        ? await db.query.userPreferences
+            .findFirst({
+              where: eq(schema.userPreferences.userId, booking.hostId),
+              columns: { brandColor: true },
+            })
+            .catch(() => undefined)
+        : undefined;
 
       await Promise.all(
         booking.attendees.map((a) =>
@@ -213,12 +235,13 @@ export function startRemindersWorker(): Worker<ReminderJob> {
               start: booking.startsAt,
               end: booking.endsAt,
               timezone: a.timezone ?? booking.timezone,
-              hostName: booking.host?.name ?? "your host",
+              hostName: booking.host?.name ?? "",
               attendeeName: a.name ?? a.email,
               meetingUrl: booking.meetingUrl ?? undefined,
               location: booking.location ?? undefined,
               manageUrl: `${appUrl}/booking/${booking.uid}`,
-              leadLabel: label,
+              leadLabel: leadLabelSk(booking.startsAt),
+              brandColor: prefs?.brandColor,
             }),
             to: a.email,
           }),

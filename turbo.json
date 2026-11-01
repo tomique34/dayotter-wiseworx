@@ -15,6 +15,7 @@
     "MICROSOFT_CLIENT_SECRET",
     "SMTP_URL",
     "EMAIL_FROM",
+    "EMAIL_BRAND_NAME",
     "ENCRYPTION_KEY"
   ],
   "tasks": {

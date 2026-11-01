@@ -7,6 +7,7 @@ import { applyBookingRules } from "../automation/apply-rules";
 import { writeBookingToCalendar } from "../calendar/host-calendar";
 import { jitsiRoomUrl } from "../integrations/jitsi";
 import { createZoomMeeting } from "../integrations/zoom";
+import { getHostBranding } from "./branding";
 import { AUTO_CONFERENCE } from "./event-type-input";
 import { fanOutBookingLifecycle } from "./lifecycle";
 import {
@@ -205,6 +206,8 @@ export async function finalizeConfirmedBooking(ctx: FinalizeContext): Promise<vo
   // must not stop the attendee's mail, and each failure is logged with its
   // recipient so the cause is visible instead of a single opaque error.
   const manageUrl = `${appUrl}/booking/${uid}`;
+  // Branding is cosmetic: a lookup failure must never cost the attendee their email.
+  const branding = await getHostBranding(host.id).catch(() => null);
   const sendConfirmation = async (
     to: string,
     timezone: string,
@@ -223,6 +226,9 @@ export async function finalizeConfirmedBooking(ctx: FinalizeContext): Promise<vo
           location: eventType.locationDetail ?? undefined,
           meetingUrl,
           manageUrl,
+          brandColor: branding?.brandColor,
+          hostMessage: branding?.welcomeMessage,
+          recipient,
         }),
         to,
       });
@@ -236,9 +242,10 @@ export async function finalizeConfirmedBooking(ctx: FinalizeContext): Promise<vo
       });
     }
   };
-  await sendConfirmation(attendee.email, attendee.timezone, host.name ?? "your host", "attendee");
+  // An empty host name drops the "Hostiteľ" row instead of printing a placeholder.
+  await sendConfirmation(attendee.email, attendee.timezone, host.name ?? "", "attendee");
   if (host.email) {
-    await sendConfirmation(host.email, host.timezone, host.name ?? "you", "host");
+    await sendConfirmation(host.email, host.timezone, host.name ?? "", "host");
   }
 
   // Recurring series: create the remaining occurrences (best-effort each; an

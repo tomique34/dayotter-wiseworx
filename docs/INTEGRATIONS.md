@@ -31,7 +31,7 @@ provider rejects the callback.
 | Zoom | `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET` | `APP_URL/api/integrations/zoom/callback` | - |
 | Stripe | `STRIPE_SECRET_KEY`, `STRIPE_PRICE_PRO`, `STRIPE_WEBHOOK_SECRET` | - | `APP_URL/api/webhooks/stripe` |
 | Twilio | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_SMS_FROM`, `TWILIO_WHATSAPP_FROM` | - | `APP_URL/api/webhooks/twilio` (set on the number/Messaging Service) |
-| Resend (email) | `RESEND_API_KEY`, `EMAIL_FROM` | - | - |
+| Resend (email) | `RESEND_API_KEY`, `EMAIL_FROM`, optional `EMAIL_BRAND_NAME` | - | - |
 | Mobile push | *(none - iOS works out of the box; Android needs your own Firebase project + `google-services.json`)* | - | - |
 
 ---

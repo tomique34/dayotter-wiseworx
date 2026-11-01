@@ -3,6 +3,7 @@ import { env } from "@/lib/server/env";
 import { logger } from "@dayotter/core";
 import { and, asc, eq, getDb, schema } from "@dayotter/db";
 import { bookingConfirmation, sendEmail } from "@dayotter/emails";
+import { getHostBranding } from "../booking/branding";
 import { AUTO_CONFERENCE } from "../booking/event-type-input";
 import { writeBookingToCalendar } from "../calendar/host-calendar";
 
@@ -215,11 +216,24 @@ export async function finalizePoll(
 
   // Confirm the time to the host + everyone who's coming.
   const appUrl = env.APP_URL;
+  const branding = await getHostBranding(poll.hostId).catch(() => null);
   const recipients = [
     ...(poll.host?.email
-      ? [{ email: poll.host.email, name: poll.host.name ?? "you", tz: poll.host.timezone }]
+      ? [
+          {
+            email: poll.host.email,
+            name: poll.host.name ?? "",
+            tz: poll.host.timezone,
+            role: "host" as const,
+          },
+        ]
       : []),
-    ...attendees.map((a) => ({ email: a.email, name: a.name, tz: poll.host?.timezone ?? "UTC" })),
+    ...attendees.map((a) => ({
+      email: a.email,
+      name: a.name,
+      tz: poll.host?.timezone ?? "UTC",
+      role: "attendee" as const,
+    })),
   ];
   await Promise.all(
     recipients.map((r) =>
@@ -229,11 +243,15 @@ export async function finalizePoll(
           start,
           end,
           timezone: r.tz ?? "UTC",
-          hostName: poll.host?.name ?? "your host",
-          attendeeName: r.name,
+          hostName: poll.host?.name ?? "",
+          // The host copy lists who's coming; there's no single attendee, so name the group.
+          attendeeName: r.role === "host" ? attendees.map((a) => a.name).join(", ") : r.name,
           location: poll.location ?? undefined,
           meetingUrl,
           manageUrl: `${appUrl}/poll/${poll.token}`,
+          brandColor: branding?.brandColor,
+          hostMessage: branding?.welcomeMessage,
+          recipient: r.role,
         }),
         to: r.email,
       }),

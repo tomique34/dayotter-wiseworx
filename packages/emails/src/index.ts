@@ -21,6 +21,7 @@ export {
   weeklyDigest,
   firstBookingCelebration,
   applyTemplateVars,
+  brandName,
   WORKFLOW_VARIABLES,
   type BookingEmailData,
   type DailyBriefingData,
